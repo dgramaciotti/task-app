@@ -1,0 +1,51 @@
+logging {
+  level  = "debug"
+  format = "logfmt"
+}
+
+discovery.docker "linux" {
+  host = "unix:///var/run/docker.sock"
+}
+
+discovery.relabel "linux" {
+    targets = []
+
+
+    rule {
+        target_label = "job"
+        replacement = "integrations/docker"
+    }
+
+
+    rule {
+        target_label = "instance"
+        replacement = constants.hostname
+    }
+
+
+    rule {
+        source_labels = ["__meta_docker_container_name"]
+        regex = "/(.*)"
+        target_label = "container"
+    }
+
+
+    rule {
+        source_labels = ["__meta_docker_container_log_stream"]
+        target_label = "stream"
+    }
+}
+
+loki.source.docker "linux" {
+    host = "unix:///var/run/docker.sock"
+    targets = discovery.docker.linux.targets
+    forward_to = [loki.write.local.receiver]
+    relabel_rules = discovery.relabel.linux.rules
+    refresh_interval = "5s"
+}
+
+loki.write "local" {
+  endpoint {
+    url = "http://grafana-loki:3100/loki/api/v1/push"
+  }
+}

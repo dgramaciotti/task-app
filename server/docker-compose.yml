@@ -1,0 +1,89 @@
+version: '3.8'
+services:
+  api:
+    build:
+      context: .
+      dockerfile: Dockerfile.dev
+    container_name: api
+    ports:
+      - '3000:3000'
+    volumes:
+      - .:/app
+      - /app/node_modules
+    environment:
+      NODE_ENV: development
+      PORT: 3000
+    networks:
+      - app_network
+
+  alloy:
+    image: grafana/alloy:latest
+    container_name: alloy
+    ports:
+      - '12345:12345' # For Alloy's HTTP server (e.g., /metrics, /ready)
+    volumes:
+      - ./observability/config.alloy:/etc/alloy/config.alloy
+      - alloy_data:/var/lib/alloy/data
+      - /var/run/docker.sock:/var/run/docker.sock
+    command:
+      - run
+      - --server.http.listen-addr=0.0.0.0:12345
+      - --storage.path=/var/lib/alloy/data
+      - /etc/alloy/config.alloy
+    networks:
+      - app_network # Connect to the custom network
+    depends_on:
+      - api # Ensure Alloy starts after the API to begin scraping logs
+
+  grafana-loki:
+    image: grafana/loki:latest
+    container_name: grafana-loki
+    ports:
+      - '3100:3100' # Loki's default port for ingestion and querying
+    command: -config.file=/etc/loki/config.yaml
+    volumes:
+      - ./observability/loki-config.yaml:/etc/loki/config.yaml
+      - loki_data:/loki # Persist Loki data
+    networks:
+      - app_network # Connect to the custom network
+
+  grafana:
+    image: grafana/grafana:latest
+    container_name: grafana
+    ports:
+      - '3001:3000' # Grafana's default port (mapping to 3001 on host to avoid conflict with API)
+    volumes:
+      - grafana_data:/var/lib/grafana # Persist Grafana data (dashboards, datasources)
+      - ./observability/grafana/provisioning/datasources:/etc/grafana/provisioning/datasources
+      - ./observability/grafana/provisioning/dashboards:/etc/grafana/provisioning/dashboards
+    environment:
+      GF_AUTH_ANONYMOUS_ENABLED: 'true' # Optional: Enable anonymous access for quick setup
+      GF_AUTH_ANONYMOUS_ORG_ROLE: 'Admin' # Optional: Set role for anonymous user
+    networks:
+      - app_network # Connect to the custom network
+    depends_on:
+      - grafana-loki # Ensure Grafana starts after Loki
+
+  db:
+    image: postgres:15-alpine
+    container_name: task-db
+    environment:
+      POSTGRES_DB: node_db
+      POSTGRES_USER: your_user
+      POSTGRES_PASSWORD: your_password
+    ports:
+      - '5432:5432'
+    volumes:
+      - db_data:/var/lib/postgresql/data # Persist database data
+    networks:
+      - app_network # Connect to the custom network
+
+volumes:
+  alloy_data:
+  loki_data:
+  grafana_data:
+  db_data:
+
+networks:
+  app_network:
+    driver: bridge
