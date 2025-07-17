@@ -5,6 +5,10 @@ Basic task (or todo) app to show some coding principles.
 FE stack: react + MUI + React query
 BE: stack: Express + prisma
 
+The backend application was based on a template that is under development for NodeJS based APIs (https://github.com/dgramaciotti/node-ts-api-boilerplate).
+
+The frontend was also based on a template, but for react SPA applications.
+
 ## Get started
 
 ### Running the FE
